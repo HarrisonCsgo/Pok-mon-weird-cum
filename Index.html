@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Monster RPG</title>
+
+<style>
+body{
+  margin:0;
+  background:#111;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+  overflow:hidden;
+  font-family:monospace;
+}
+
+#game{
+  width:800px;
+  height:576px;
+  position:relative;
+  overflow:hidden;
+  border:6px solid white;
+  background:#6dbf5d;
+  image-rendering:pixelated;
+}
+
+.tile{
+  width:32px;
+  height:32px;
+  position:absolute;
+}
+
+.grass{
+  background:#6dbf5d;
+}
+
+.tree{
+  background:#216b2a;
+}
+
+.water{
+  background:#3498db;
+}
+
+.path{
+  background:#c2b280;
+}
+
+#player{
+  width:28px;
+  height:28px;
+  background:#ff4444;
+  position:absolute;
+  border:2px solid white;
+  z-index:20;
+  transition:0.08s linear;
+}
+
+#battleScreen{
+  position:absolute;
+  inset:0;
+  background:black;
+  color:white;
+  display:none;
+  z-index:100;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+}
+
+.enemy{
+  width:120px;
+  height:120px;
+  background:#8e44ad;
+  border:4px solid white;
+  margin-bottom:20px;
+}
+
+.hpbar{
+  width:200px;
+  height:20px;
+  border:2px solid white;
+  margin:10px;
+}
+
+.hp{
+  height:100%;
+  background:lime;
+  width:100%;
+}
+
+button{
+  margin:8px;
+  padding:12px 20px;
+  font-size:18px;
+  cursor:pointer;
+  border:none;
+  background:#f1c40f;
+  font-family:monospace;
+}
+
+#textbox{
+  background:white;
+  color:black;
+  width:80%;
+  padding:10px;
+  margin-top:20px;
+  text-align:center;
+}
+
+#hud{
+  position:absolute;
+  top:10px;
+  left:10px;
+  background:rgba(0,0,0,0.5);
+  color:white;
+  padding:8px;
+  z-index:30;
+}
+
+#controls{
+  position:absolute;
+  bottom:10px;
+  right:10px;
+  color:white;
+  background:rgba(0,0,0,0.5);
+  padding:8px;
+  z-index:30;
+}
+</style>
+</head>
+<body>
+
+<div id="game">
+
+<div id="hud">
+  Pokemon Cum Game<br>
+  Explore and battle!
+<div>
+
+<div id="controls">
+  Arrow Keys = Move
+</div>
+
+<div id="player"></div>
+
+<div id="battleScreen">
+
+  <div class="enemy"></div>
+
+  <h1>WILD SLIME</h1>
+
+  <div class="hpbar">
+    <div class="hp" id="enemyHp"></div>
+  </div>
+
+  <div>
+    <button onclick="attack()">ATTACK</button>
+    <button onclick="heal()">HEAL</button>
+    <button onclick="runAway()">RUN</button>
+  </div>
+
+  <div id="textbox">
+    A wild slime appeared!
+  </div>
+
+</div>
+
+</div>
+
+<script>
+const game = document.getElementById("game");
+const player = document.getElementById("player");
+const battleScreen = document.getElementById("battleScreen");
+const textbox = document.getElementById("textbox");
+const enemyHpBar = document.getElementById("enemyHp");
+
+const mapWidth = 25;
+const mapHeight = 18;
+const tileSize = 32;
+
+let playerX = 12;
+let playerY = 9;
+
+let inBattle = false;
+let enemyHp = 100;
+let playerHp = 100;
+
+const map = [];
+
+function createMap(){
+
+  for(let y=0;y<mapHeight;y++){
+
+    for(let x=0;x<mapWidth;x++){
+
+      const tile = document.createElement("div");
+      tile.classList.add("tile");
+
+      let type = "grass";
+
+      if(
+        x === 0 ||
+        y === 0 ||
+        x === mapWidth-1 ||
+        y === mapHeight-1
+      ){
+        type = "tree";
+      }
+
+      if(Math.random() < 0.05){
+        type = "water";
+      }
+
+      if(Math.random() < 0.08){
+        type = "tree";
+      }
+
+      if(y === 8 || y === 9){
+        type = "path";
+      }
+
+      tile.classList.add(type);
+
+      tile.style.left = x * tileSize + "px";
+      tile.style.top = y * tileSize + "px";
+
+      game.appendChild(tile);
+
+      map.push({
+        x,
+        y,
+        type
+      });
+    }
+  }
+}
+
+createMap();
+
+function updatePlayer(){
+  player.style.left = playerX * tileSize + 2 + "px";
+  player.style.top = playerY * tileSize + 2 + "px";
+}
+
+updatePlayer();
+
+document.addEventListener("keydown", e => {
+
+  if(inBattle) return;
+
+  let newX = playerX;
+  let newY = playerY;
+
+  if(e.key === "ArrowRight") newX++;
+  if(e.key === "ArrowLeft") newX--;
+  if(e.key === "ArrowUp") newY--;
+  if(e.key === "ArrowDown") newY++;
+
+  const tile = map.find(
+    t => t.x === newX && t.y === newY
+  );
+
+  if(!tile) return;
+
+  if(tile.type === "tree" || tile.type === "water"){
+    return;
+  }
+
+  playerX = newX;
+  playerY = newY;
+
+  updatePlayer();
+
+  if(tile.type === "grass"){
+    if(Math.random() < 0.12){
+      startBattle();
+    }
+  }
+
+});
+
+function startBattle(){
+
+  inBattle = true;
+  enemyHp = 100;
+
+  enemyHpBar.style.width = "100%";
+
+  textbox.innerText =
+    "A wild slime appeared!";
+
+  battleScreen.style.display = "flex";
+}
+
+function attack(){
+
+  const damage =
+    Math.floor(Math.random()*20)+10;
+
+  enemyHp -= damage;
+
+  if(enemyHp < 0){
+    enemyHp = 0;
+  }
+
+  enemyHpBar.style.width = enemyHp + "%";
+
+  textbox.innerText =
+    "You dealt " + damage + " damage!";
+
+  if(enemyHp <= 0){
+
+    textbox.innerText =
+      "Slime defeated!";
+
+    setTimeout(() => {
+
+      battleScreen.style.display = "none";
+      inBattle = false;
+
+    }, 1200);
+
+    return;
+  }
+
+  setTimeout(enemyAttack, 700);
+}
+
+function enemyAttack(){
+
+  const damage =
+    Math.floor(Math.random()*12)+4;
+
+  playerHp -= damage;
+
+  textbox.innerText =
+    "Slime hit you for " +
+    damage + "!";
+
+  if(playerHp <= 0){
+
+    textbox.innerText =
+      "You fainted! Refresh to retry.";
+
+    return;
+  }
+}
+
+function heal(){
+
+  playerHp += 20;
+
+  if(playerHp > 100){
+    playerHp = 100;
+  }
+
+  textbox.innerText =
+    "You healed!";
+}
+
+function runAway(){
+
+  textbox.innerText =
+    "You escaped!";
+
+  setTimeout(() => {
+
+    battleScreen.style.display = "none";
+    inBattle = false;
+
+  }, 800);
+}
+</script>
+
+</body>
+</html>
