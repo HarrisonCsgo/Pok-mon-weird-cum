@@ -1,0 +1,23 @@
+<script>
+const game = document.getElementById("game");
+const tileSize = 32;
+const mapWidth = 50;
+const mapHeight = 50;
+const mapsCount = 5;
+
+for(let mapNum=0; mapNum<mapsCount; mapNum++){
+  for(let y=0; y<mapHeight; y++){
+    for(let x=0; x<mapWidth; x++){
+      const tile = document.createElement("div");
+      tile.classList.add("tile");
+      const r = Math.random();
+      if(r<0.05) tile.classList.add("water");
+      else if(r<0.15) tile.classList.add("tree");
+      else tile.classList.add("grass");
+      tile.style.left = (x*tileSize) + "px";
+      tile.style.top = (y*tileSize + mapNum*mapHeight*tileSize) + "px";
+      game.appendChild(tile);
+    }
+  }
+}
+</script>
