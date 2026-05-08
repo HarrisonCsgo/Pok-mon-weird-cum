@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>8-Bit RPG Prototype with Voice & Quests</title>
+<style>
+  body {
+    margin: 0;
+    background: #000;
+    font-family: monospace;
+    color: white;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    margin: auto;
+    background: #333;
+    border: 2px solid red; /* for visibility */
+  }
+  #ui {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    color: white;
+  }
+  #encounter {
+    display: none;
+    position: absolute;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 400px;
+    background: #222;
+    border: 2px solid white;
+    padding: 10px;
+  }
+  #encounter button {
+    margin: 5px;
+  }
+  #quest {
+    position: absolute;
+    top: 450px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #222;
+    border: 2px solid white;
+    padding: 5px;
+    width: 400px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas" width="640" height="480"></canvas>
+<div id="ui"></div>
+
+<div id="quest">
+  <div id="questText"></div>
+  <button id="acceptQuest">Accept Quest</button>
+</div>
+
+<div id="encounter">
+  <div id="encounterText"></div>
+  <button id="attackBtn">Attack</button>
+  <button id="defendBtn">Defend</button>
+  <button id="runBtn">Run</button>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+  // ----- Canvas & Context -----
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const TILE_SIZE = 32;
+  const MAP_WIDTH = 20;
+  const MAP_HEIGHT = 15;
+
+  // ----- Maps -----
+  let currentMap = 'medieval';
+  const maps = {
+    medieval: {
+      name: 'Medieval Path',
+      tiles: '#4B5320',
+      enemies: [{name:'Goblin', chance:0.3},{name:'Elf', chance:0.2}]
+    },
+    desert: {
+      name:'Desert',
+      tiles:'#C2B280',
+      enemies:[{name:'Sand Dragon', chance:0.2},{name:'Scorpion', chance:0.4}]
+    },
+    gold:{
+      name:'Gold Mines',
+      tiles:'#FFD700',
+      enemies:[{name:'Gold Golem', chance:0.3},{name:'Mine Rat', chance:0.5}]
+    },
+    beach:{
+      name:'Tropical Beach',
+      tiles:'#FFDAB9',
+      enemies:[{name:'Crab', chance:0.4},{name:'Monkey', chance:0.3}]
+    }
+  };
+
+  // ----- Player -----
+  const player = {x:10, y:7, name:'Frodo'};
+
+  // ----- Controls -----
+  const keys = {};
+  document.addEventListener('keydown', e => keys[e.key] = true);
+  document.addEventListener('keyup', e => keys[e.key] = false);
+
+  // ----- Quest System -----
+  const quests = [
+    {text:'Defeat 10 Goblins', type:'kill', target:'Goblin', amount:10, progress:0, completed:false},
+    {text:'Defeat a Dragon', type:'kill', target:'Sand Dragon', amount:1, progress:0, completed:false},
+    {text:'Collect 5 fruits', type:'collect', target:'Fruit', amount:5, progress:0, completed:false}
+  ];
+
+  let currentQuest = null;
+  const questText = document.getElementById('questText');
+  const acceptQuestBtn = document.getElementById('acceptQuest');
+
+  function speak(text){
+    if('speechSynthesis' in window){
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.rate = 0.9;
+      window.speechSynthesis.speak(utter);
+    }
+  }
+
+  function giveQuest(){
+    currentQuest = quests[Math.floor(Math.random()*quests.length)];
+    questText.innerText = "Quest Available: " + currentQuest.text;
+    speak("Greetings, adventurer! " + currentQuest.text);
+    acceptQuestBtn.style.display='inline-block';
+  }
+
+  acceptQuestBtn.onclick = () => {
+    speak("Quest accepted! Good luck!");
+    acceptQuestBtn.style.display='none';
+  };
+
+  // ----- Enemy System -----
+  let enemies = [];
+
+  function spawnEnemies(){
+    enemies = [];
+    const mapEnemies = maps[currentMap].enemies;
+    mapEnemies.forEach(e => {
+      if(Math.random() < e.chance){
+        enemies.push({
+          name: e.name,
+          x: Math.floor(Math.random() * MAP_WIDTH),
+          y: Math.floor(Math.random() * MAP_HEIGHT),
+          hp: 10
+        });
+      }
+    });
+  }
+
+  function moveEnemies(){
+    enemies.forEach(e => {
+      const dx = Math.floor(Math.random()*3)-1;
+      const dy = Math.floor(Math.random()*3)-1;
+      e.x = Math.min(Math.max(e.x+dx,0), MAP_WIDTH-1);
+      e.y = Math.min(Math.max(e.y+dy,0), MAP_HEIGHT-1);
+    });
+  }
+
+  // ----- Map transitions -----
+  function changeMap(next){
+    const mapKeys = Object.keys(maps);
+    let idx = mapKeys.indexOf(currentMap);
+    if(next) idx = (idx+1) % mapKeys.length;
+    else idx = (idx-1+mapKeys.length) % mapKeys.length;
+    currentMap = mapKeys[idx];
+    player.x = Math.floor(MAP_WIDTH/2);
+    player.y = Math.floor(MAP_HEIGHT/2);
+    spawnEnemies();
+  }
+
+  // ----- Encounter -----
+  let inEncounter = false;
+  let currentEnemy = null;
+  const encounterDiv = document.getElementById('encounter');
+  const encounterText = document.getElementById('encounterText');
+
+  function startEncounter(enemy){
+    inEncounter = true;
+    currentEnemy = enemy;
+    encounterText.innerText = `You encountered a ${enemy.name}!`;
+    encounterDiv.style.display = 'block';
+    speak(`A wild ${enemy.name} appears!`);
+  }
+
+  function endEncounter(){
+    inEncounter = false;
+    currentEnemy = null;
+    encounterDiv.style.display = 'none';
+  }
+
+  document.getElementById('attackBtn').addEventListener('click', () => {
+    if(!currentEnemy) return;
+    currentEnemy.hp -= 5;
+    speak(`You attack the ${currentEnemy.name}`);
+    if(currentEnemy.hp <= 0){
+      speak(`${currentEnemy.name} defeated!`);
+      alert(`${currentEnemy.name} defeated!`);
+      if(currentQuest && currentQuest.type==='kill' && currentQuest.target===currentEnemy.name){
+        currentQuest.progress++;
+        if(currentQuest.progress >= currentQuest.amount){
+          speak(`Quest Completed: ${currentQuest.text}`);
+          alert(`Quest Completed: ${currentQuest.text}`);
+          currentQuest.completed = true;
+        }
+      }
+      enemies = enemies.filter(e => e !== currentEnemy);
+      endEncounter();
+    }
+  });
+
+  document.getElementById('defendBtn').addEventListener('click', () => {
+    speak(`You defend against ${currentEnemy.name}`);
+  });
+
+  document.getElementById('runBtn').addEventListener('click', () => {
+    speak(`You run from ${currentEnemy.name}`);
+    endEncounter();
+  });
+
+  // ----- Drawing -----
+  function drawMap(){
+    for(let y=0; y<MAP_HEIGHT; y++){
+      for(let x=0; x<MAP_WIDTH; x++){
+        let color = maps[currentMap].tiles;
+        if(currentMap==='medieval'){
+          let greenShift = 50 + Math.floor(Math.sin(Date.now()/200 + x + y) * 20);
+          color = `rgb(34,${greenShift},34)`;
+        }
+        ctx.fillStyle = color;
+        ctx.fillRect(x*TILE_SIZE, y*TILE_SIZE, TILE_SIZE, TILE_SIZE);
+      }
+    }
+  }
+
+  function drawPlayer(){
+    const px = player.x*TILE_SIZE;
+    const py = player.y*TILE_SIZE;
+    ctx.fillStyle = '#FDD7AA'; ctx.fillRect(px+8,py+4,16,16); // face
+    ctx.fillStyle = '#8B4513'; ctx.fillRect(px+8,py,16,4); // hair
+    ctx.fillStyle = '#000'; ctx.fillRect(px+10,py+10,3,3); ctx.fillRect(px+19,py+10,3,3); // eyes
+    ctx.fillStyle = '#007700'; ctx.fillRect(px+6,py+20,20,12); // robe
+  }
+
+  function drawEnemies(){
+    enemies.forEach(e=>{
+      ctx.fillStyle='red';
+      ctx.fillRect(e.x*TILE_SIZE+8, e.y*TILE_SIZE+8,16,16);
+    });
+  }
+
+  function drawUI(){
+    document.getElementById('ui').innerText = `Map: ${maps[currentMap].name} | Position: (${player.x},${player.y}) | Enemies: ${enemies.length}`;
+  }
+
+  // ----- Game Loop -----
+  function gameLoop(){
+    // Move player
+    if(!inEncounter){
+      if(keys['ArrowUp']) player.y = Math.max(player.y-1,0);
+      if(keys['ArrowDown']) player.y = Math.min(player.y+1,MAP_HEIGHT-1);
+      if(keys['ArrowLeft']) player.x = Math.max(player.x-1,0);
+      if(keys['ArrowRight']) player.x = Math.min(player.x+1,MAP_WIDTH-1);
+    }
+
+    // Move enemies
+    moveEnemies();
+
+    // Check for encounter
+    if(!inEncounter){
+      enemies.forEach(e => {
+        if(e.x === player.x && e.y === player.y){
+          startEncounter(e);
+        }
+      });
+    }
+
+    // Draw everything
+    drawMap();
+    drawPlayer();
+    drawEnemies();
+    drawUI();
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  // ----- Start -----
+  spawnEnemies();
+  giveQuest();
+  gameLoop();
+
+});
+</script>
+
+</body>
+</html>
