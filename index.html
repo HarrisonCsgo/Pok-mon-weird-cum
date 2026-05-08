@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Beginner Pokémon-Style RPG Prototype</title>
+<style>
+  body { margin:0; background:#000; font-family: monospace; color:white; overflow:hidden; }
+  canvas { display:block; margin:auto; border:2px solid #444; background:#7CFC00; }
+  #ui { position:absolute; top:10px; left:10px; color:white; }
+  #quest { position:absolute; bottom:10px; left:50%; transform:translateX(-50%); background:#222; border:2px solid white; padding:5px; width:400px; text-align:center; }
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas" width="640" height="480"></canvas>
+<div id="ui"></div>
+<div id="quest">
+  <div id="questText"></div>
+  <button id="acceptQuest">Accept Quest</button>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const TILE = 32;
+  const MAP_WIDTH = 20;
+  const MAP_HEIGHT = 15;
+
+  // --- Tile Map ---
+  // 0=grass,1=path,2=water
+  const mapData = [
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0],
+    [0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
+    [0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
+    [0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,2,2,2,0,0,0,0,0,0,0,0,2,2,2,0,0,0,0],
+    [0,0,2,0,2,0,0,0,0,0,0,0,0,2,0,2,0,0,0,0],
+    [0,0,2,2,2,0,0,0,0,0,0,0,0,2,2,2,0,0,0,0],
+    [0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  ];
+
+  // --- Player ---
+  const player = {x:5,y:5};
+
+  // --- Controls ---
+  const keys = {};
+  document.addEventListener('keydown', e => keys[e.key]=true);
+  document.addEventListener('keyup', e => keys[e.key]=false);
+
+  // --- Quests ---
+  const quests = [
+    {text:"Find the hidden flower", type:"collect", target:"Flower", amount:1, progress:0, completed:false}
+  ];
+  let currentQuest = null;
+  const questText = document.getElementById('questText');
+  const acceptQuestBtn = document.getElementById('acceptQuest');
+
+  function speak(text){
+    if('speechSynthesis' in window){
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 0.9;
+      window.speechSynthesis.speak(u);
+    }
+  }
+
+  function giveQuest(){
+    currentQuest = quests[0];
+    questText.innerText = "Quest Available: "+currentQuest.text;
+    speak("Hello adventurer! "+currentQuest.text);
+    acceptQuestBtn.style.display="inline-block";
+  }
+
+  acceptQuestBtn.onclick = () => {
+    speak("Quest accepted! Good luck!");
+    acceptQuestBtn.style.display="none";
+  }
+
+  // --- Draw Map ---
+  function drawMap(){
+    for(let y=0;y<MAP_HEIGHT;y++){
+      for(let x=0;x<MAP_WIDTH;x++){
+        if(mapData[y][x]===0) ctx.fillStyle="#228B22"; // grass
+        else if(mapData[y][x]===1) ctx.fillStyle="#DEB887"; // path
+        else ctx.fillStyle="#1E90FF"; // water
+        ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
+      }
+    }
+  }
+
+  // --- Draw Player ---
+  function drawPlayer(){
+    ctx.fillStyle="#FFD700"; // yellow placeholder sprite
+    ctx.fillRect(player.x*TILE+8,player.y*TILE+8,16,16);
+  }
+
+  function drawUI(){
+    document.getElementById('ui').innerText=`Position: (${player.x},${player.y})`;
+  }
+
+  // --- Game Loop ---
+  function gameLoop(){
+    // Movement: only on path tiles
+    if(keys['ArrowUp'] && player.y>0 && mapData[player.y-1][player.x]!==2) player.y--;
+    if(keys['ArrowDown'] && player.y<MAP_HEIGHT-1 && mapData[player.y+1][player.x]!==2) player.y++;
+    if(keys['ArrowLeft'] && player.x>0 && mapData[player.y][player.x-1]!==2) player.x--;
+    if(keys['ArrowRight'] && player.x<MAP_WIDTH-1 && mapData[player.y][player.x+1]!==2) player.x++;
+
+    drawMap();
+    drawPlayer();
+    drawUI();
+    requestAnimationFrame(gameLoop);
+  }
+
+  giveQuest();
+  gameLoop();
+});
+</script>
+</body>
+</html>
